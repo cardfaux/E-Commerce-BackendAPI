@@ -10,7 +10,7 @@ exports.productById = (req, res, next, id) => {
         .exec((err, product) => {
             if (err || !product) {
                 return res.status(400).json({
-                    error: 'Product Not Found'
+                    error: 'Product not found'
                 });
             }
             req.product = product;
@@ -23,34 +23,34 @@ exports.read = (req, res) => {
     return res.json(req.product);
 };
 
-
 exports.create = (req, res) => {
     let form = new formidable.IncomingForm();
     form.keepExtensions = true;
     form.parse(req, (err, fields, files) => {
-        if(err) {
+        if (err) {
             return res.status(400).json({
-                error: 'Image Could Not Be Uploaded'
+                error: 'Image could not be uploaded'
             });
         }
+        // check for all fields
+        const { name, description, price, category, quantity, shipping } = fields;
 
-        // Check For All Fields
-        const { name, description, price, category, quantity, shipping,  } = fields;
-        if(!name || !description || !price || !category || !quantity || !shipping) {
+        if (!name || !description || !price || !category || !quantity || !shipping) {
             return res.status(400).json({
-                error: 'All Fields Are Required'
+                error: 'All fields are required'
             });
         }
 
         let product = new Product(fields);
-        // 1kb = 1000
-        // 1mb = 1,000,000
 
-        if(files.photo) {
-            //console.log('FILES PHOTO: ', files.photo);
-            if(files.photo.size > 1000000) {
+        // 1kb = 1000
+        // 1mb = 1000000
+
+        if (files.photo) {
+            // console.log("FILES PHOTO: ", files.photo);
+            if (files.photo.size > 1000000) {
                 return res.status(400).json({
-                    error: 'Image Should Be Less Than 1mb In Size'
+                    error: 'Image should be less than 1mb in size'
                 });
             }
             product.photo.data = fs.readFileSync(files.photo.path);
@@ -58,9 +58,10 @@ exports.create = (req, res) => {
         }
 
         product.save((err, result) => {
-            if(err) {
+            if (err) {
+                console.log('PRODUCT CREATE ERROR ', err);
                 return res.status(400).json({
-                    error: errorHandler(error)
+                    error: errorHandler(err)
                 });
             }
             res.json(result);
@@ -77,8 +78,7 @@ exports.remove = (req, res) => {
             });
         }
         res.json({
-            //deletedProduct,
-            message: 'Product Deleted Successfully'
+            message: 'Product deleted successfully'
         });
     });
 };
@@ -246,7 +246,7 @@ exports.listSearch = (req, res) => {
     // assign search value to query.name
     if (req.query.search) {
         query.name = { $regex: req.query.search, $options: 'i' };
-        // assign category value to query.category
+        // assigne category value to query.category
         if (req.query.category && req.query.category != 'All') {
             query.category = req.query.category;
         }
@@ -261,4 +261,24 @@ exports.listSearch = (req, res) => {
             res.json(products);
         }).select('-photo');
     }
+};
+
+exports.decreaseQuantity = (req, res, next) => {
+    let bulkOps = req.body.order.products.map(item => {
+        return {
+            updateOne: {
+                filter: { _id: item._id },
+                update: { $inc: { quantity: -item.count, sold: +item.count } }
+            }
+        };
+    });
+
+    Product.bulkWrite(bulkOps, {}, (error, products) => {
+        if (error) {
+            return res.status(400).json({
+                error: 'Could not update product'
+            });
+        }
+        next();
+    });
 };
